@@ -1,53 +1,58 @@
+import openai
 import streamlit as st
-from openai import OpenAI
+from PIL import Image
 
 # Show title and description.
-st.title("📄 Document question answering")
+st.title("🖼️ Image Emotion Prediction")
 st.write(
-    "Upload a document below and ask a question about it – GPT will answer! "
-    "To use this app, you need to provide an OpenAI API key, which you can get [here](https://platform.openai.com/account/api-keys). "
+    "Upload an image below and describe it – GPT will predict the emotion based on your description! "
+    "To use this app, you need to provide an OpenAI API key, which you can get [here](https://platform.openai.com/account/api-keys)."
 )
 
 # Ask user for their OpenAI API key via `st.text_input`.
-# Alternatively, you can store the API key in `./.streamlit/secrets.toml` and access it
-# via `st.secrets`, see https://docs.streamlit.io/develop/concepts/connections/secrets-management
 openai_api_key = st.text_input("OpenAI API Key", type="password")
 if not openai_api_key:
     st.info("Please add your OpenAI API key to continue.", icon="🗝️")
 else:
+    # Set the OpenAI API key
+    openai.api_key = openai_api_key
 
-    # Create an OpenAI client.
-    client = OpenAI(api_key=openai_api_key)
+    # Let the user upload an image file via `st.file_uploader`.
+    uploaded_file = st.file_uploader("Upload an image", type=["jpg", "jpeg", "png"])
 
-    # Let the user upload a file via `st.file_uploader`.
-    uploaded_file = st.file_uploader(
-        "Upload a document (.txt or .md)", type=("txt", "md")
-    )
+    # If an image is uploaded, display it.
+    if uploaded_file:
+        image = Image.open(uploaded_file)
+        st.image(image, caption="Uploaded Image", use_column_width=True)
 
-    # Ask the user for a question via `st.text_area`.
-    question = st.text_area(
-        "Now ask a question about the document!",
-        placeholder="Can you give me a short summary?",
-        disabled=not uploaded_file,
-    )
-
-    if uploaded_file and question:
-
-        # Process the uploaded file and question.
-        document = uploaded_file.read().decode()
-        messages = [
-            {
-                "role": "user",
-                "content": f"Here's a document: {document} \n\n---\n\n {question}",
-            }
-        ]
-
-        # Generate an answer using the OpenAI API.
-        stream = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=messages,
-            stream=True,
+        # Ask the user to describe the image.
+        description = st.text_area(
+            "Describe the image (for example, what the person is doing, their expressions, etc.):",
+            placeholder="The person is sitting on a bench with a sad expression...",
         )
 
-        # Stream the response to the app using `st.write_stream`.
-        st.write_stream(stream)
+        if description:
+            # Process the description to predict emotion
+            messages = [
+                {
+                    "role": "system",
+                    "content": "You are an assistant that predicts emotions based on descriptions of images.",
+                },
+                {
+                    "role": "user",
+                    "content": f"Here's an image description: {description}. What emotion do you infer from this?",
+                },
+            ]
+
+            # Generate an emotion prediction using the OpenAI API
+            response = openai.ChatCompletion.create(
+                model="gpt-4",
+                messages=messages,
+            )
+
+            # Extract and display the response
+            emotion_prediction = response['choices'][0]['message']['content']
+            st.write("Predicted Emotion:")
+            st.write(emotion_prediction)
+        else:
+            st.write("Please provide a description of the image for emotion analysis.")
